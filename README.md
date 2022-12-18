@@ -1,6 +1,9 @@
 # Turret-Face-Tracker
 Tracks a persons face using an ESP32 and servos.
 
+![TurrectPic1](./pictures/TurretPic1.jpg)
+![TurrectGif](./pictures/TurretGif.gif)
+
 ## Instructions:
 ### Pins:
 - Connect the signal pin of the PAN Servo to pin 12 of the ESP32
@@ -16,11 +19,16 @@ Tracks a persons face using an ESP32 and servos.
 5. Upload the code to the right COM port
 6. If nothing comes up in Serial Monitor, find IP address of ESP32 and go to that address in your browser
 7. If all is good you will get a screen like this:
+
+![ESP32_Browser1](./pictures/ESP32_Browser1.png)
+
 8. Click "Start Stream", make XCLK Mhz = 10, switch on V-Flip, make Resolution = QVGA (320x240), make WB Mode = Sunny, and then switch on Face Detection
-9. It should be all good now
+
+![ESP32_Browser2](./pictures/ESP32_Browser2.png)
+
+9. Sense your face and it should start tracking you
 
 ## Links:
-
 ### Tutorials:
 - https://www.learnrobotics.org/blog/face-tracking-opencv/?utm_source=youtube&utm_medium=description&utm_campaign=face_tracking_video
 - https://robotzero.one/face-tracking-esp32-cam/
