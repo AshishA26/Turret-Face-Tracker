@@ -1,8 +1,8 @@
 # Turret-Face-Tracker
 Tracks a persons face using an ESP32 and servos.
 
-![TurrectPic1](./pictures/TurretPic1.jpg)
-![TurrectGif](./pictures/TurretGif.gif)
+![TurretPic1](./Pictures/TurretPic1.jpg)
+![TurretGif](./Pictures/TurretGif.gif)
 
 ## Instructions:
 ### Pins:
@@ -18,13 +18,13 @@ Tracks a persons face using an ESP32 and servos.
 4. Change the WIFI SSID and Password if needed in the code, and make sure your computer is connected to the same WIFI through LAN or wireless
 5. Upload the code to the right COM port
 6. If nothing comes up in Serial Monitor, find IP address of ESP32 and go to that address in your browser
-7. If all is good you will get a screen like this:
+7. If all is good you will get a screen like this: 
 
-![ESP32_Browser1](./pictures/ESP32_Browser1.png)
+![ESP32_Browser1](./Pictures/ESP32_Browser1.png)
 
 8. Click "Start Stream", make XCLK Mhz = 10, switch on V-Flip, make Resolution = QVGA (320x240), make WB Mode = Sunny, and then switch on Face Detection
 
-![ESP32_Browser2](./pictures/ESP32_Browser2.png)
+  ![ESP32_Browser2](./Pictures/ESP32_Browser2.png)
 
 9. Sense your face and it should start tracking you
 
