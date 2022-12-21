@@ -1,0 +1,278 @@
+// Created by Rylan Hachey, Ashish Agrahari, Noah Raymond at FHCI
+
+#include "esp_camera.h"
+#include <WiFi.h>
+#include <ESP32Servo.h>
+
+//
+// WARNING!!! PSRAM IC required for UXGA resolution and high JPEG quality
+//            Ensure ESP32 Wrover Module or other board with PSRAM is selected
+//            Partial images will be transmitted if image exceeds buffer size
+//
+//            You must select partition scheme from the board menu that has at least 3MB APP space.
+//            Face Recognition is DISABLED for ESP32 and ESP32-S2, because it takes up from 15
+//            seconds to process single frame. Face Detection is ENABLED if PSRAM is enabled as well
+
+// ===================
+// Select camera model
+// ===================
+#define CAMERA_MODEL_WROVER_KIT // Has PSRAM
+//#define CAMERA_MODEL_ESP_EYE // Has PSRAM
+//#define CAMERA_MODEL_ESP32S3_EYE // Has PSRAM
+//#define CAMERA_MODEL_M5STACK_PSRAM // Has PSRAM
+//#define CAMERA_MODEL_M5STACK_V2_PSRAM // M5Camera version B Has PSRAM
+//#define CAMERA_MODEL_M5STACK_WIDE // Has PSRAM
+//#define CAMERA_MODEL_M5STACK_ESP32CAM // No PSRAM
+//#define CAMERA_MODEL_M5STACK_UNITCAM // No PSRAM
+//#define CAMERA_MODEL_AI_THINKER // Has PSRAM
+//#define CAMERA_MODEL_TTGO_T_JOURNAL // No PSRAM
+// ** Esprmessif Internal Boards **
+//#define CAMERA_MODEL_ESP32_CAM_BOARD
+//#define CAMERA_MODEL_ESP32S2_CAM_BOARD
+//#define CAMERA_MODEL_ESP32S3_CAM_LCD
+
+#include "camera_pins.h"
+
+// ===========================
+// Enter your WiFi credentials
+// ===========================
+const char* ssid = "TPLINK";
+const char* password = "turretRouter";
+
+//Initialize variables
+Servo myservoPan;
+Servo myservoTilt;
+int x = 0;
+int y = 0;
+int xPos = 90;
+int yPos = 90;
+int height = 0;
+int width = 0;
+int xMapped = 0;
+int yMapped = 0;
+int resetCount = 0;
+bool searchMode = false;
+bool goingRight = true;
+bool goingUp = true;
+
+//Methods grabbed from the cpp file
+void startCameraServer();
+int returnX();
+int returnY();
+int returnH();
+int returnW();
+
+// Setup for ESP32
+void setup() {
+  // Start serial communication
+  Serial.begin(115200);
+  Serial.setDebugOutput(true);
+  Serial.println();
+
+  // Setup PWM on ESP32
+  ESP32PWM::allocateTimer(0);
+  ESP32PWM::allocateTimer(1);
+  ESP32PWM::allocateTimer(2);
+  ESP32PWM::allocateTimer(3);
+
+  // Setup both servo's parameters
+  myservoPan.setPeriodHertz(50);    // standard 50 hz servo
+  myservoPan.attach(12, 500, 2400); // attaches the servo on pin 18 to the servo object
+  myservoTilt.setPeriodHertz(50);    // standard 50 hz servo
+  myservoTilt.attach(13, 500, 2400); // attaches the servo on pin 18 to the servo object
+
+  // Starting Position for servos
+  myservoPan.write(xPos);
+  myservoTilt.write(yPos);
+
+  // ************************************Configuration for ESP32's camera start here************************************
+  camera_config_t config;
+  config.ledc_channel = LEDC_CHANNEL_0;
+  config.ledc_timer = LEDC_TIMER_0;
+  config.pin_d0 = Y2_GPIO_NUM;
+  config.pin_d1 = Y3_GPIO_NUM;
+  config.pin_d2 = Y4_GPIO_NUM;
+  config.pin_d3 = Y5_GPIO_NUM;
+  config.pin_d4 = Y6_GPIO_NUM;
+  config.pin_d5 = Y7_GPIO_NUM;
+  config.pin_d6 = Y8_GPIO_NUM;
+  config.pin_d7 = Y9_GPIO_NUM;
+  config.pin_xclk = XCLK_GPIO_NUM;
+  config.pin_pclk = PCLK_GPIO_NUM;
+  config.pin_vsync = VSYNC_GPIO_NUM;
+  config.pin_href = HREF_GPIO_NUM;
+  config.pin_sscb_sda = SIOD_GPIO_NUM;
+  config.pin_sscb_scl = SIOC_GPIO_NUM;
+  config.pin_pwdn = PWDN_GPIO_NUM;
+  config.pin_reset = RESET_GPIO_NUM;
+  config.xclk_freq_hz = 20000000;
+  config.frame_size = FRAMESIZE_UXGA;
+  config.pixel_format = PIXFORMAT_JPEG; // for streaming
+  //config.pixel_format = PIXFORMAT_RGB565; // for face detection/recognition
+  config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
+  config.fb_location = CAMERA_FB_IN_PSRAM;
+  config.jpeg_quality = 12;
+  config.fb_count = 1;
+
+  // if PSRAM IC present, init with UXGA resolution and higher JPEG quality
+  //                      for larger pre-allocated frame buffer.
+  if (config.pixel_format == PIXFORMAT_JPEG) {
+    if (psramFound()) {
+      config.jpeg_quality = 10;
+      config.fb_count = 2;
+      config.grab_mode = CAMERA_GRAB_LATEST;
+    } else {
+      // Limit the frame size when PSRAM is not available
+      config.frame_size = FRAMESIZE_SVGA;
+      config.fb_location = CAMERA_FB_IN_DRAM;
+    }
+  } else {
+    // Best option for face detection/recognition
+    config.frame_size = FRAMESIZE_240X240;
+#if CONFIG_IDF_TARGET_ESP32S3
+    config.fb_count = 2;
+#endif
+  }
+
+#if defined(CAMERA_MODEL_ESP_EYE)
+  pinMode(13, INPUT_PULLUP);
+  pinMode(14, INPUT_PULLUP);
+#endif
+
+  // camera init
+  esp_err_t err = esp_camera_init(&config);
+  if (err != ESP_OK) {
+    Serial.printf("Camera init failed with error 0x%x", err);
+    return;
+  }
+
+  sensor_t * s = esp_camera_sensor_get();
+  // initial sensors are flipped vertically and colors are a bit saturated
+  if (s->id.PID == OV3660_PID) {
+    s->set_vflip(s, 1); // flip it back
+    s->set_brightness(s, 1); // up the brightness just a bit
+    s->set_saturation(s, -2); // lower the saturation
+  }
+  // drop down frame size for higher initial frame rate
+  if (config.pixel_format == PIXFORMAT_JPEG) {
+    s->set_framesize(s, FRAMESIZE_QVGA);
+  }
+
+#if defined(CAMERA_MODEL_M5STACK_WIDE) || defined(CAMERA_MODEL_M5STACK_ESP32CAM)
+  s->set_vflip(s, 1);
+  s->set_hmirror(s, 1);
+#endif
+
+#if defined(CAMERA_MODEL_ESP32S3_EYE)
+  s->set_vflip(s, 1);
+#endif
+  // ************************************Configuration for ESP32's camera end here************************************
+
+  // Connect ESP32 to Router
+  WiFi.begin(ssid, password);
+  WiFi.setSleep(false);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("");
+  Serial.println("WiFi connected");
+
+  startCameraServer();
+
+  // Once camera is ready and Wifi works, output a message with the address to go to
+  Serial.print("Camera Ready! Use 'http://");
+  Serial.print(WiFi.localIP());
+  Serial.println("' to connect");
+}
+
+// Function to change the y position (tilt) when in search mode
+void changeY() {
+
+  goingRight = !goingRight;
+
+  if (goingUp) {
+    if (yPos < 180) {
+      yPos += 5;
+    } else {
+      goingUp = false;
+    }
+  } else {
+    if (yPos > 0) {
+      yPos -= 5;
+    } else {
+      goingUp = true;
+    }
+  }
+
+  myservoTilt.write(180 - yPos);
+
+}
+
+// ESP32 constantly runs this loop
+void loop() {
+
+  // Check if the face box has moved in any way
+  if (x != returnX() || y != returnY() || height != returnH() || width != returnW()) {
+
+    resetCount = 0;
+    searchMode = false;
+
+    x = returnX();
+    y = returnY();
+    height = returnH();
+    width = returnW();
+
+    //Taking the distance the box is away from the center of the screen and mapping to degrees for the servo
+    xMapped = (int)map(x - (160 - width / 2), -160, 160, -90, 90);
+    yMapped = (int)map(y - (120 - height / 2), -120, 120, -90, 90);
+
+    //Changing the positions of the servos by the perviously calculated amount
+    //The amount of change will depend on how far away from the camera you are
+    xPos += xMapped / (width / 5);
+    yPos += yMapped / (height / 5);
+
+    myservoPan.write(xPos);
+    myservoTilt.write(180 - yPos);
+
+  // If face is not detected for 500 loops, it will go into seach mode and reset to the default position
+  } else if (!searchMode && resetCount == 500) {
+
+    resetCount = 0;
+    xPos = 90;
+    yPos = 90;
+    myservoPan.write(xPos);
+    myservoTilt.write(180 - yPos);
+
+    searchMode = true;
+
+  // If face is not detected for a certain period of time, it goes into Search mode where it pans and tilts in search of a face
+  } else if (searchMode && resetCount == 5) {
+
+    resetCount = 0;
+
+    //Panning
+    if (goingRight) {
+      if (xPos < 180) {
+        xPos += 2;
+      } else {
+        changeY();
+      }
+    } else {
+      if (xPos > 0) {
+        xPos -= 2;
+      } else {
+        changeY();
+      }
+    }
+    
+    myservoPan.write(xPos);
+    
+  } else {
+    resetCount++;
+  }
+  
+  delay(10);
+  
+}
