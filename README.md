@@ -1,5 +1,7 @@
 # Turret-Face-Tracker
-Tracks a persons face using an ESP32 and servos.
+The project was designed to track a persons face using an ESP32-Wrover and servos. Based on where the person's face is in the view of the camera, the device will move so as to center the person's face again.
+
+Made for our TEJ Computer Technology class. Programmed used Arduino IDE and 3D models made in Autodesk Inventor.
 
 ![TurretPic1](./Pictures/TurretPic1.jpg)
 ![TurretGif](./Pictures/TurretGif.gif)
